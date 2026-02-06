@@ -5,12 +5,13 @@ import makeWASocket, {
 
 import express from "express";
 import pino from "pino";
+import qrcode from "qrcode-terminal";
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
 app.get("/", (req, res) => {
-  res.send("WhatsApp bot çalışıyor.");
+  res.send("Bot çalışıyor");
 });
 
 app.listen(PORT, () => {
@@ -22,27 +23,22 @@ async function startBot() {
 
   const sock = makeWASocket({
     auth: state,
-    logger: pino({ level: "silent" })
+    logger: pino({ level: "silent" }),
+    printQRInTerminal: false
   });
 
   sock.ev.on("creds.update", saveCreds);
 
-  sock.ev.on("connection.update", async (update) => {
-    const { connection, lastDisconnect } = update;
+  sock.ev.on("connection.update", (update) => {
+    const { connection, lastDisconnect, qr } = update;
+
+    if (qr) {
+      console.log("📱 QR KOD:");
+      qrcode.generate(qr, { small: true });
+    }
 
     if (connection === "open") {
-      console.log("✅ WhatsApp bağlantısı kuruldu");
-
-      if (!state.creds.registered) {
-        const phoneNumber = "905102211214";
-
-        try {
-          const code = await sock.requestPairingCode(phoneNumber);
-          console.log("📱 Pairing Code:", code);
-        } catch (err) {
-          console.log("❌ Pairing Code alınamadı:", err.message);
-        }
-      }
+      console.log("✅ WhatsApp bağlandı");
     }
 
     if (connection === "close") {
@@ -50,7 +46,7 @@ async function startBot() {
         lastDisconnect?.error?.output?.statusCode !==
         DisconnectReason.loggedOut;
 
-      console.log("❌ Bağlantı kapandı.");
+      console.log("❌ Bağlantı kapandı");
 
       if (shouldReconnect) {
         startBot();
